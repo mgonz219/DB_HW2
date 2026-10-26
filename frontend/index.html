@@ -81,19 +81,32 @@
     <section id = "tabSim" class = "tabContent">
         <div class = "twoCol">
             <div class = "colControl">
+                <fieldset class="stackedFieldset">
+                    <legend>Deterministic Integration Test</legend>
+                    <button type="button" id="btnTestHardcodedCheckout" style="font-weight: bold;">
+                        Run Hardcoded Test (SKU 1003 & 1009)
+                    </button>
+                </fieldset>
+
                 <fieldset class = "stackedFieldset">
                     <legend>OLTP Simulation</legend>
 
                     <label for = "simStoreId">Store ID:</label>
                     <input type = "number" id = "simStoreId" value = "1" min = "1">
 
-                    <label for = "simCustId">Customer ID (optional):</label>
-                    <input type = "number" id = "simCustId" placeholder = "Leave blank for cash">
+                    <label for = "simItemCount">Item Count (10-20):</label>
+                    <input type = "number" id = "simItemCount" placeholder = "12" min = "10" max = "20">
 
-                    <label for = "simAcctId">Bank Account ID (optional):</label>
-                    <input type = "number" id = "simAcctId", placeholder = "Required if card">
+                    <label for = "simPaymentMethod">Payment Method:</label>
+                    <select id = "simPaymentMethod">
+                        <option value = "CARD">CARD</option>
+                        <option value = "CASH">CASH</option>
+                    </select>
 
-                    <button id = "btnRunSim">Run Checkout Simulation</button>
+                    <label for = "simConClients">Concurrent Windows/Clients</label>
+                    <input type = "number" id = "simConClients" value = "1" min = "1" max = "10">
+
+                    <button id = "btnRunOneSim">Run Checkout Simulation</button>
                 </fieldset>
             </div>
 
@@ -139,7 +152,7 @@
     <section id = "tabHistory" class = "tabContent">
         <div class = "fullWidth">
             <fieldset>
-                <legend>Recent Transactions Log (~50 Records)</legend>
+                <legend>Recent Transactions Log (~100 Records)</legend>
                 <div style="margin-bottom: 10px;">
                     <button type="button" id="btnRefreshHistory">Refresh History</button>
                 </div>

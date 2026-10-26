@@ -30,7 +30,7 @@ async function checkDB(){
 async function sendRequest(endpoint, method = "GET", payload = null){
     const options = {
         method,
-        headers: {"Content-Type": "applications/json"}
+        headers: {"Content-Type": "application/json"}
     };
 
     if(payload && method !== "GET")
@@ -302,7 +302,7 @@ $(function(){
         outputLog.text("Seeding baseline data...");
         try{
             const res = await sendRequest("db/seed", "POST");
-            outputLog.test(JSON.stringify(res, null, 2));
+            outputLog.text(JSON.stringify(res, null, 2));
         } catch (err) {
             outputLog.text(`Seed Error: ${err.message}`);
         }
@@ -354,16 +354,126 @@ $(function(){
         outputLog.text("Dropping tables...");
 
         try{
-            const res = await sendRequest("db/reset", "POST");
+            const res = await sendRequest("db/reset", "POST", {confirm: true});
             outputLog.text(JSON.stringify(res, null, 2));
-            tableHeadRow.empty();
-            tableBody.empty();
+
+            renderTable($("#inspectHeadRow"), $("#inspectBody"));
+
         } catch (err){
             outputLog.text(`Drop Error: ${err.message}`);
         }
     });
 
     //--OLTP Simulation
+
+    // 1. Live Concurrent / Single Simulation
+    $("#btnRunOneSim").on("click", async () => {
+    const $feed = $("#simLogContainer");
+    $feed.empty();
+
+    const storeId = parseInt($("#simStoreId").val(), 10) || 1;
+    const itemCount = parseInt($("#simItemCount").val(), 10) || 12;
+    const paymentMethod = $("#simPaymentMethod").val();
+    const concurrentClients = parseInt($("#simConClients").val(), 10) || 1;
+
+    // Render pending cards immediately
+    const cards = [];
+    for (let i = 0; i < concurrentClients; i++) {
+        const cardId = `simCard_${Date.now()}_${i}`;
+        const $card = $("<div>", {
+        id: cardId,
+        class: "simCard pending",
+        html: `
+            <h4>Client #${i + 1} (Store ${storeId}) <span class="badge">Processing</span></h4>
+            <p class="muted">Locking inventory rows and verifying bank balance...</p>
+        `
+        });
+        $feed.prepend($card);
+        cards.push({ id: cardId, clientNum: i + 1 });
+    }
+
+    // Fire requests concurrently using Promise.allSettled
+    const checkoutPromises = cards.map(async (c) => {
+        const $card = $(`#${c.id}`);
+
+        try {
+        const res = await sendRequest("simulation/checkout", "POST", {
+            store_id: storeId,
+            item_count: itemCount,
+            payment_method: paymentMethod
+        });
+
+        const receipt = Array.isArray(res.simulations) ? res.simulations[0] : res;
+
+        if(!receipt || (!receipt.purchase_id && !receipt.success)){
+            throw new Error(res.message || "Invalid receipt data returned");
+        }
+
+        // Render Committed State
+        $card.removeClass("pending").addClass("committed");
+        $card.empty();
+        $card.append(`
+            <h4>Transaction #${receipt.purchase_id} | Client #${c.clientNum} <span class="badge">Committed</span></h4>
+            <p style="margin: 2px 0; font-size: 12px;">Customer: <strong>${receipt.customer_id || "Guest"}</strong> | Payment: <strong>${receipt.payment_method}</strong> ${receipt.account_id ? `(Acct #${receipt.account_id})` : ""}</p>
+        `);
+
+        const $itemList = $("<ul>");
+        receipt.items.forEach((it) => {
+            const unit = Number(it.unit_price).toFixed(2);
+            // const line = Number(it.line_total).toFixed(2);
+            $itemList.append(`<li>${it.name || it.sku} (${it.sku}) - ${it.quantity} @ $${unit} = $${(it.quantity * unit).toFixed(2)}</li>`);        });
+        $card.append($itemList);
+
+       $card.append(`
+            <div class="totals" style="margin-top: 6px; border-top: 1px solid #eee; padding-top: 4px;">
+                Subtotal: $${receipt.subtotal} | Tax: $${(receipt.total - receipt.subtotal).toFixed(2) || "0.00"} | <strong>Total: $${receipt.total}</strong>
+            </div>
+            `);
+        } catch (err) {
+        // Render Rolled Back / Aborted State
+        $card.removeClass("pending").addClass("aborted");
+        $card.empty();
+        $card.append(`
+            <h4>Client #${c.clientNum} <span class="badge">Rolled Back</span></h4>
+            <p style="color: #c0392b; margin: 4px 0; font-weight: bold;">Error: ${err.message}</p>
+            <p class="muted" style="margin: 0; font-size: 11px;">ACID transaction safely aborted. All inventory and bank updates rolled back.</p>
+        `);
+        }
+    });
+
+    await Promise.allSettled(checkoutPromises);
+    });
+
+    $("#btnTestHardcodedCheckout").on("click", async () => {
+        const $feed = $("#simLogContainer");
+        $feed.prepend(`
+            <div id="testCard" class="sim-card pending">
+            <h4>Deterministic Test Transaction <span class="badge">Running</span></h4>
+            <p class="muted">Testing processCheckout with fixed SKUs (1003, 1009) and Account #1...</p>
+            </div>
+        `);
+
+        try {
+            const res = await sendRequest("checkout/test", "POST", { account_id: 1 });
+            const receipt = res.simulations ? res.simulations[0] : res;
+
+            $("#testCard").removeClass("pending").addClass("committed").html(`
+            <h4>Tx #${receipt.purchase_id} <span class="badge">Committed</span></h4>
+            <p style="margin: 2px 0; font-size: 12px;">Customer: <strong>${receipt.customer_id}</strong> | Paid via <strong>${receipt.payment_method}</strong> (Account #${receipt.account_id})</p>
+            <ul>
+                ${receipt.items.map(it => `<li>${it.name || it.sku} (${it.sku}) - Qty: ${it.quantity} @ $${it.unit_price} = $${it.line_total}</li>`).join("")}
+            </ul>
+            <div class="totals">
+                Subtotal: $${receipt.subtotal} | Tax: $${receipt.tax} | <strong>Total: $${receipt.total}</strong>
+            </div>
+            `);
+        } catch (err) {
+            $("#testCard").removeClass("pending").addClass("aborted").html(`
+            <h4>Deterministic Test <span class="badge">Failed / Rolled Back</span></h4>
+            <p style="color: #c0392b; font-weight: bold; margin: 4px 0;">Error: ${err.message}</p>
+            `);
+        }
+    });
 
     $("#btnRunSim").on("click", async () => {
         feed = $("#simLogContainer");

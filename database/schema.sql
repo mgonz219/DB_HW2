@@ -93,3 +93,24 @@ CREATE TABLE purchase_item (
     FOREIGN KEY (sku)
         REFERENCES product(sku)
 );
+
+
+-- Tracks decisions for distributed transactions
+-- between supermarket_db and bank_db.
+
+CREATE TABLE distributed_transactions (
+    transaction_id UUID PRIMARY KEY,
+    store_gid TEXT NOT NULL UNIQUE,
+    bank_gid TEXT NOT NULL UNIQUE,
+
+    decision VARCHAR(10) NOT NULL
+        CHECK (decision IN ('COMMIT', 'ROLLBACK')),
+
+    completed BOOLEAN NOT NULL DEFAULT FALSE,
+
+    created_at TIMESTAMPTZ NOT NULL
+        DEFAULT CURRENT_TIMESTAMP,
+
+    completed_at TIMESTAMPTZ
+);
+

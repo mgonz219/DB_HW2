@@ -1,6 +1,12 @@
 const express = require("express");
 const cors = require("cors");
 const pool = require("./db");
+const { bankPool } = require("./db");
+
+const {
+    initializeCoordinator,
+    shutdownCoordinator
+} = require("./services/transactionCoordinator");
 
 // route imports
 const storeRoutes = require("./routes/stores");
@@ -55,6 +61,26 @@ app.get("/api/db-test", async (req, res) => {
 
 const PORT = 3000;
 
+
+if (process.env.DB_MAINTENANCE_MODE === "true") {
+    app.use("/api", (req, res, next) => {
+        // Allow database administration and diagnostics.
+        if (
+            req.path.startsWith("/db/") ||
+            req.path === "/health" ||
+            req.path === "/db-test"
+        ) {
+            return next();
+        }
+
+        return res.status(503).json({
+            success: false,
+            message: "Application is in database maintenance mode"
+        });
+    });
+}
+
+
 // route registrations
 app.use("/api/stores", storeRoutes);
 app.use("/api/products", productRoutes);
@@ -66,6 +92,86 @@ app.use("/api/simulation", simulationRoutes);
 app.use("/api/checkout", checkoutRoutes);
 app.use("/api/transactions", transactionRoutes);
 
-app.listen(PORT, () => {
-	console.log(`Server running at http://localhost:${PORT}`);
+
+let server;
+let shuttingDown = false;
+
+async function startServer() {
+    try {
+        // Recover unfinished distributed transactions
+        // before accepting HTTP requests.
+        if (process.env.DB_MAINTENANCE_MODE !== "true") {
+		await initializeCoordinator();
+	} else {
+		console.log(
+			"Maintenance mode: transaction coordinator disabled"
+		);
+	}
+
+        server = app.listen(PORT, () => {
+            console.log(
+                `Server running at http://localhost:${PORT}`
+            );
+        });
+
+        server.on("error", async (error) => {
+            console.error("HTTP server error:", error);
+            await shutdown("HTTP server error");
+        });
+
+    } catch (error) {
+        console.error("Server startup failed:", error);
+
+        await shutdownCoordinator();
+        await Promise.all([
+            pool.end(),
+            bankPool.end()
+        ]);
+
+        process.exitCode = 1;
+    }
+}
+
+async function shutdown(reason) {
+    if (shuttingDown) return;
+    shuttingDown = true;
+
+    console.log(`Shutting down: ${reason}`);
+
+    try {
+        // Stop accepting requests and wait for existing
+        // HTTP requests to finish.
+        if (server) {
+            await new Promise((resolve, reject) => {
+                server.close((error) => {
+                    if (error) reject(error);
+                    else resolve();
+                });
+            });
+        }
+
+        // Release lock only after requests have finished.
+        await shutdownCoordinator();
+
+        await Promise.all([
+            pool.end(),
+            bankPool.end()
+        ]);
+
+        console.log("Server shutdown complete.");
+
+    } catch (error) {
+        console.error("Shutdown failed:", error);
+        process.exitCode = 1;
+    }
+}
+
+process.on("SIGINT", () => {
+    shutdown("SIGINT");
 });
+
+process.on("SIGTERM", () => {
+    shutdown("SIGTERM");
+});
+
+startServer();

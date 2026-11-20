@@ -1,7 +1,8 @@
 
 const {
     runDistributedTransaction,
-    recoverPendingTransactions
+    initializeCoordinator,
+    shutdownCoordinator
 } = require("./services/transactionCoordinator");
 
 const {
@@ -12,7 +13,7 @@ const {
 async function main() {
     try {
         // Resolve any previously interrupted test transactions.
-        await recoverPendingTransactions();
+        await initializeCoordinator();
 
         const result = await runDistributedTransaction({
             supermarketWork: async (client) => {
@@ -67,11 +68,13 @@ async function main() {
         }
         process.exitCode = 1;
     } finally {
-        await Promise.all([
-            supermarketPool.end(),
-            bankPool.end()
-        ]);
-    }
+    await shutdownCoordinator();
+
+    await Promise.all([
+        supermarketPool.end(),
+        bankPool.end()
+    ]);
+}
 }
 
 main();

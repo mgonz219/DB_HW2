@@ -13,3 +13,11 @@ CREATE TABLE IF NOT EXISTS public.bank_account (
 
 CREATE INDEX IF NOT EXISTS idx_bank_account_customer
 ON public.bank_account (customer_id);
+
+-- Records successfully committed banking transactions.
+-- Used by the distributed transaction coordinator for recovery.
+
+CREATE TABLE IF NOT EXISTS public.distributed_participant_commits (
+    transaction_id UUID PRIMARY KEY,
+    committed_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);

@@ -2,7 +2,9 @@
 -- Bank database seed data
 -- Execute in bank_db.
 
-TRUNCATE TABLE public.bank_account
+TRUNCATE TABLE
+    public.bank_account,
+    public.distributed_participant_commits
 RESTART IDENTITY;
 
 INSERT INTO public.bank_account (

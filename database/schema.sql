@@ -74,7 +74,7 @@ CREATE TABLE purchase (
     account_id INTEGER,
 
     FOREIGN KEY (store_id) REFERENCES store(store_id),
-    FOREIGN KEY (customer_id) REFERENCES customer(customer_id),
+    FOREIGN KEY (customer_id) REFERENCES customer(customer_id)
 );
 
 CREATE TABLE purchase_item (
@@ -112,5 +112,13 @@ CREATE TABLE distributed_transactions (
         DEFAULT CURRENT_TIMESTAMP,
 
     completed_at TIMESTAMPTZ
+);
+
+-- Records successful supermarket transaction commits.
+-- Used by the two-phase commit recovery coordinator.
+
+CREATE TABLE distributed_participant_commits (
+    transaction_id UUID PRIMARY KEY,
+    committed_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 

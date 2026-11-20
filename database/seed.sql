@@ -79,4 +79,91 @@ VALUES
     ('Michael', 'Brown', 'michael@example.com', '3105550103'),
     ('Emily', 'Davis', 'emily@example.com', '3055550104'),
     ('David', 'Wilson', 'david@example.com', '2125550105');
+	
+
+-- PHASE 2: Generate 95 additional stores.
+-- The original five stores have IDs 1 through 5.
+
+INSERT INTO store (name, address, city, state, zip)
+SELECT
+    'Supermarket Branch ' || n,
+    n || ' Market Street',
+    CASE (n % 4)
+        WHEN 0 THEN 'Houston'
+        WHEN 1 THEN 'Los Angeles'
+        WHEN 2 THEN 'New York'
+        ELSE 'Miami'
+    END,
+    CASE (n % 4)
+        WHEN 0 THEN 'TX'
+        WHEN 1 THEN 'CA'
+        WHEN 2 THEN 'NY'
+        ELSE 'FL'
+    END,
+    CASE (n % 4)
+        WHEN 0 THEN '77002'
+        WHEN 1 THEN '90001'
+        WHEN 2 THEN '10001'
+        ELSE '33101'
+    END
+FROM generate_series(6, 100) AS n
+ORDER BY n;
+
+
+-- Ensure all 100 stores have 25 aisles.
+-- Existing aisle records will be preserved.
+
+INSERT INTO aisle (store_id, aisle_number, category)
+SELECT
+    s.store_id,
+    a.aisle_number,
+    CASE
+        WHEN a.aisle_number = 1 THEN 'Produce'
+        WHEN a.aisle_number = 2 THEN 'Dairy'
+        WHEN a.aisle_number = 3 THEN 'Meat'
+        WHEN a.aisle_number = 4 THEN 'Frozen Foods'
+        WHEN a.aisle_number = 5 THEN 'Household'
+        WHEN a.aisle_number BETWEEN 6 AND 10 THEN 'Groceries'
+        WHEN a.aisle_number BETWEEN 11 AND 15 THEN 'Beverages'
+        WHEN a.aisle_number BETWEEN 16 AND 20 THEN 'Personal Care'
+        ELSE 'General Merchandise'
+    END
+FROM store AS s
+CROSS JOIN generate_series(1, 25) AS a(aisle_number)
+ON CONFLICT (store_id, aisle_number) DO NOTHING;
+
+
+-- Add inventory at stores 2 through 100.
+-- Store 1 retains its original inventory.
+
+INSERT INTO inventory (
+    store_id,
+    sku,
+    aisle_number,
+    quantity
+)
+SELECT
+    s.store_id,
+    p.sku,
+    p.aisle_number,
+    50 + (s.store_id % 20)
+FROM store AS s
+CROSS JOIN (
+    VALUES
+        ('1001', 1),
+        ('1002', 1),
+        ('1003', 2),
+        ('1004', 2),
+        ('1005', 3),
+        ('1006', 3),
+        ('1007', 4),
+        ('1008', 4),
+        ('1009', 5),
+        ('1010', 5)
+) AS p(sku, aisle_number)
+WHERE s.store_id BETWEEN 2 AND 100
+ON CONFLICT (store_id, sku) DO NOTHING;
+
+
+
 

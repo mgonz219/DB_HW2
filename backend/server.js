@@ -18,6 +18,7 @@ const tableRoutes = require("./routes/tables");
 const simulationRoutes = require("./routes/simulation");
 const checkoutRoutes = require("./routes/checkout");
 const transactionRoutes = require("./routes/transactions");
+const sqlInfoRoutes = require("./routes/sqlInfo");
 
 // create app that handles http req's
 const app = express();
@@ -91,6 +92,7 @@ app.use("/api/tables", tableRoutes);
 app.use("/api/simulation", simulationRoutes);
 app.use("/api/checkout", checkoutRoutes);
 app.use("/api/transactions", transactionRoutes);
+app.use("/api/sql", sqlInfoRoutes);
 
 
 let server;

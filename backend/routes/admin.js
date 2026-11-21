@@ -80,7 +80,9 @@ router.use((req, res, next) => {
 
 // Prevent destructive operations while PostgreSQL has
 // unresolved prepared transactions or coordinator records.
+
 async function assertSafeToRebuild() {
+    // Check both databases for unresolved prepared transactions.
     for (const pool of [supermarketPool, bankPool]) {
         const prepared = await pool.query(`
             SELECT gid
@@ -95,6 +97,20 @@ async function assertSafeToRebuild() {
         }
     }
 
+    // A brand-new database won't have this table yet.
+    const tableCheck = await supermarketPool.query(`
+        SELECT to_regclass(
+            'public.distributed_transactions'
+        ) AS table_name
+    `);
+
+    if (tableCheck.rows[0].table_name === null) {
+        // Safe to proceed with initialization.
+        return;
+    }
+
+    // If the coordinator table exists, ensure that
+    // no distributed transactions remain unresolved.
     const pending = await supermarketPool.query(`
         SELECT COUNT(*)::integer AS count
         FROM public.distributed_transactions
@@ -107,6 +123,7 @@ async function assertSafeToRebuild() {
         );
     }
 }
+
 
 // One PostgreSQL transaction, within one database.
 // This does not make changes across both databases atomic.

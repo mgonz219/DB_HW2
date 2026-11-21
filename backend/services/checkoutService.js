@@ -10,6 +10,10 @@ async function processCheckout({
     paymentMethod,
     items
 }) {
+	
+    const startTime = process.hrtime.bigint();
+
+    
     // Validate inputs before opening distributed transactions.
     if (!Number.isSafeInteger(storeId) || storeId <= 0) {
         throw new Error("Invalid store ID");
@@ -265,9 +269,14 @@ async function processCheckout({
     });
 
     // Return the original receipt structure.
+    // Calculate total checkout execution time in milliseconds.
+    const executionTimeMs =
+        Number(process.hrtime.bigint() - startTime) / 1_000_000;
+
     return {
         success: true,
-        ...result.supermarketResult
+        ...result.supermarketResult,
+        execution_time_ms: Number(executionTimeMs.toFixed(2))
     };
 }
 

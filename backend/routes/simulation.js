@@ -1,7 +1,7 @@
 
 const express = require("express");
 const router = express.Router();
-const pool = require("../db");
+const { supermarketPool: pool, bankPool } = require("../db");
 
 const {
     processCheckout
@@ -46,15 +46,19 @@ router.post("/checkout", async (req, res) => {
         let customerId = body.customer_id ?? null;
         let accountId = body.account_id ?? null;
 
+
+
+
         // Choose a valid bank account when paying by card
         if (paymentMethod === "CARD") {
-            const accountResult = await pool.query(`
+            const accountResult = await bankPool.query(`
                 SELECT account_id, customer_id
-                FROM bank.bank_account
-                WHERE ($1::integer IS NULL
-                       OR customer_id = $1)
-                  AND ($2::integer IS NULL
-                       OR account_id = $2)
+                FROM public.bank_account
+				WHERE account_type = 'CUSTOMER'
+				  AND ($1::integer IS NULL
+					   OR customer_id = $1)
+				  AND ($2::integer IS NULL
+					   OR account_id = $2)
                 ORDER BY random()
                 LIMIT 1
             `, [customerId, accountId]);
@@ -72,6 +76,7 @@ router.post("/checkout", async (req, res) => {
         } else {
             accountId = null;
         }
+
 
         // Retrieve available products at the selected store
         const inventoryResult = await pool.query(`

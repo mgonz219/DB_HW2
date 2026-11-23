@@ -1,7 +1,7 @@
 
 const express = require("express");
 const router = express.Router();
-const pool = require("../db");
+const { supermarketPool: pool, bankPool } = require("../db");
 
 // Map frontend names to actual PostgreSQL tables
 const allowedTables = {
@@ -13,12 +13,13 @@ const allowedTables = {
     product: "public.product",
     purchase_item: "public.purchase_item",
     purchase: "public.purchase",
-    bank_account: "bank.bank_account"
+    bank_account: "public.bank_account"
 };
 
 // GET /api/tables/:selectedTable
 router.get("/:selectedTable", async (req, res) => {
-    const tableName = allowedTables[req.params.selectedTable];
+    const selectedTable = req.params.selectedTable;
+    const tableName = allowedTables[selectedTable];
 
     if (!tableName) {
         return res.status(400).json({
@@ -28,13 +29,17 @@ router.get("/:selectedTable", async (req, res) => {
     }
 
     try {
-        const result = await pool.query(
+        // Bank accounts live in the separate banking database.
+        const selectedPool =
+            selectedTable === "bank_account" ? bankPool : pool;
+
+        const result = await selectedPool.query(
             `SELECT * FROM ${tableName} LIMIT 20`
         );
 
         res.json({
             success: true,
-            table: req.params.selectedTable,
+            table: selectedTable,
             count: result.rows.length,
             data: result.rows
         });

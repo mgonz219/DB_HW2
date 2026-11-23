@@ -46,18 +46,19 @@ router.post("/checkout", async (req, res) => {
         let customerId = body.customer_id ?? null;
         let accountId = body.account_id ?? null;
 
-        // Choose a valid bank account when paying by card
-        
-		
+
+
+
         // Choose a valid bank account when paying by card
         if (paymentMethod === "CARD") {
             const accountResult = await bankPool.query(`
                 SELECT account_id, customer_id
                 FROM public.bank_account
-                WHERE ($1::integer IS NULL
-                       OR customer_id = $1)
-                  AND ($2::integer IS NULL
-                       OR account_id = $2)
+				WHERE account_type = 'CUSTOMER'
+				  AND ($1::integer IS NULL
+					   OR customer_id = $1)
+				  AND ($2::integer IS NULL
+					   OR account_id = $2)
                 ORDER BY random()
                 LIMIT 1
             `, [customerId, accountId]);

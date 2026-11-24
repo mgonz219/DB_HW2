@@ -559,142 +559,89 @@ $("#btnRunOneSim").on("click", async () => {
                 ? result.simulations[0]
                 : result;
 
-            if (!receipt || !receipt.success) {
-                throw new Error(
-                    result.message || "Checkout failed"
-                );
-            }
-
-            $card
-                .removeClass("pending")
-                .addClass("committed")
-                .empty();
-
-            $card.append(
-                $("<h4>").text(
-                    `Transaction #${receipt.purchase_id} — Committed`
-                )
-            );
-
-            const $items = $("<ul>");
-
-            for (const item of receipt.items || []) {
-                $items.append(
-                    $("<li>").text(
-                        `${item.name || item.sku} — ` +
-                        `Quantity: ${item.quantity} | ` +
-                        `Unit price: $${item.unit_price}`
-                    )
-                );
-            }
-
-            $card.append($items);
-
-            $card.append(
-                $("<div>")
-                    .addClass("totals")
-                    .text(
-                        `Total: $${receipt.total} | ` +
-                        `Time: ${receipt.execution_time_ms ?? "N/A"} ms`
-                    )
-            );
-        } catch (error) {
-            $card
-                .removeClass("pending")
-                .addClass("aborted")
-                .empty();
-
-            $card.append(
-                $("<h4>").text("Deterministic test failed")
-            );
-
-            $card.append(
-                $("<p>").text(error.message)
-            );
-        }
-    });
-	 // ======================================
-    // CHECKOUT SQL DISPLAY
-    // ======================================
-
-    $("#btnShowCheckoutSQL").on("click", async () => {
-        const $display = $("#checkoutSQLDisplay");
-
-        $display.text("Loading checkout SQL...");
-
-        try {
-            const result = await sendRequest("sql/checkout");
-
-            if (!Array.isArray(result.queries)) {
-                throw new Error("Invalid SQL response");
-            }
-
-            const formatted = result.queries.map((query, index) => {
-                return (
-                    `QUERY ${index + 1}\n` +
-                    `Database: ${query.database}\n` +
-                    `Operation: ${query.operation}\n\n` +
-                    `${query.sql}\n` +
-                    "----------------------------------------"
-                );
-            }).join("\n\n");
-
-            $display.text(formatted);
-
-        } catch (error) {
-            $display.text(
-                `Unable to retrieve SQL queries: ${error.message}`
-            );
+            $("#testCard").removeClass("pending").addClass("committed").html(`
+            <h4>Tx #${receipt.purchase_id} <span class="badge">Committed</span></h4>
+            <p style="margin: 2px 0; font-size: 12px;">Customer: <strong>${receipt.customer_id}</strong> | Paid via <strong>${receipt.payment_method}</strong> (Account #${receipt.account_id})</p>
+            <ul>
+                ${receipt.items.map(it => `<li>${it.name || it.sku} (${it.sku}) - Qty: ${it.quantity} @ $${it.unit_price} = $${it.line_total}</li>`).join("")}
+            </ul>
+            <div class="totals">
+                Subtotal: $${receipt.subtotal} | Tax: $${receipt.tax} | <strong>Total: $${receipt.total}</strong>
+            </div>
+            `);
+        } catch (err) {
+            $("#testCard").removeClass("pending").addClass("aborted").html(`
+            <h4>Deterministic Test <span class="badge">Failed / Rolled Back</span></h4>
+            <p style="color: #c0392b; font-weight: bold; margin: 4px 0;">Error: ${err.message}</p>
+            `);
         }
     });
 
-    // ======================================
-    // ANALYTICAL REPORTS
-    // ======================================
+    $("#btnRunSim").on("click", async () => {
+        feed = $("#simLogContainer");
+        feed.empty();
+        feed.append("<p>Beginning Simulation...</p>");
 
-    async function loadReport(endpoint) {
-        const $head = $("#tableHeadRow");
-        const $body = $("#tableBody");
+        storeIdVal = $("#simStoreId").val();
+        custIdVal = $("#simCustId").val();
+        accountIdVal = $("simAcctId").val();
 
-        $head.empty();
-        $body.empty();
+        payload = {
+            store_id: storeIdVal ? parseInt(storeIdVal, 10) : 1,
+            customer_id: custIdVal ? parseInt(cusIdVal, 10) : null,
+            account_id: accountIdVal ? parseInt(accountIdVal, 10) : null
+        };
 
-        $body.append(
-            $("<tr>").append(
-                $("<td>")
-                    .attr("colspan", 100)
-                    .text("Loading analytical report...")
-            )
-        );
+        try{
+            const res = await sendRequest("simulation/checkout", "POST", payload);
+            feed.empty();
 
-        try {
-            const result = await sendRequest(
-                `reports/${endpoint}`
-            );
+            if(!res.simulations || res.simulations.length === 0){
+                feed.append("<p>No transactions generated</p>");
+                return;
+            }
 
-            renderTable(
-                $head,
-                $body,
-                result.data || []
-            );
+            res.simulations.forEach((sim, idx) => {
+                isErr = !sim.success;
+                card = $("<div>", {class: `simCard ${isErr ? "error" : ""}`}); 
+                card.append(`<h4>Tx #${idx + 1}: Customer ${sim.customer_id} (${sim.payment_method.toUpperCase()})</h4>`);
 
-            $outputLog.text(
-                `Report completed. Retrieved ` +
-                `${result.data?.length ?? 0} rows.`
-            );
-        } catch (error) {
-            $head.empty();
-            $body.empty();
+                if(isErr)
+                    card.append(`<p style="color:red; margin:0;"><strong>ABORTED/ROLLED BACK:</strong> ${sim.error}</p>`);
+                else{
+                    const $ul =$("<ul>");
+                    sim.items.forEach((it) => {
+                        $ul.append(`<li>${it.sku} - ${it.name} | Qty: ${it.quantity} @ $${it.unit_price} (Tax: $${it.tax_amount})</li>`);
+                    });
+                    card.append($ul);
+                    card.append(`<div><strong>Subtotal:</strong> $${sim.subtotal} | <strong>Total Paid:</strong> $${sim.total}</div>`);
+                    if (sim.account_id) {
+                        card.append(`<div class="muted">Charged to Bank Account ID: ${sim.account_id}</div>`);
+                    }
+                }
+                feed.append(card);
+            });
+        } catch (err){
+            feed.html(`<p style="color:red;">Simulation Engine Failed: ${err.message}</p>`);
+        }
+    });
 
-            $body.append(
-                $("<tr>").append(
-                    $("<td>")
-                        .attr("colspan", 100)
-                        .text(
-                            `Report failed: ${error.message}`
-                        )
-                )
-            );
+    //--Analytical Report Views
+
+    async function report(endpoint) {
+
+        head = $("#tableHeadRow");
+        body = $("#tableBody");
+        body.html("<tr><td colspan='100%'>Querying analytical view...</td></tr>");
+
+        try{
+            const res = await sendRequest(`reports/${endpoint}`, "GET");
+            outputLog.text(`Successful Query. Retrieved ${res.data ? res.data.length : 0} rows.`);
+            renderTable(head, body, res.data);
+        } catch (err){
+            head.empty();
+            body.html(`<tr><td colspan='100%' style="color:red;">Report Failed: ${err.message}</td></tr>`);
+            
         }
     }
 

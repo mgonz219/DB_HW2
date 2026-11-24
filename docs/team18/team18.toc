@@ -1,0 +1,9 @@
+\contentsline {section}{\numberline {1}Demo Video Link}{2}{section.1}%
+\contentsline {section}{\numberline {2}Written Summary of the Web Application}{2}{section.2}%
+\contentsline {subsection}{\numberline {2.1}System Architecture}{2}{subsection.2.1}%
+\contentsline {subsection}{\numberline {2.2}Distributed Two-Phase Commit (2PC) \& Concurrency Control}{2}{subsection.2.2}%
+\contentsline {section}{\numberline {3}Entity-Relationship (ER) Diagrams \& Relational Schemas}{3}{section.3}%
+\contentsline {subsection}{\numberline {3.1}Database 1: \texttt {supermarket\_db} Conceptual \& Relational Design}{3}{subsection.3.1}%
+\contentsline {section}{\numberline {4}SQL for Distributed Checkout Transactions}{3}{section.4}%
+\contentsline {section}{\numberline {5}SQL for Analytical \& Operational Queries}{5}{section.5}%
+\contentsline {section}{\numberline {6}Web References}{5}{section.6}%
